@@ -2689,6 +2689,8 @@ uint32_t HAL_RCCEx_GetPeriphCLKFreq(uint32_t PeriphClk)
   uint32_t vcooutput = 0U;
   switch (PeriphClk)
   {
+  default:
+    return 0;//breakpoint for bad argument.
   case RCC_PERIPHCLK_I2S:
     {
       /* Get the current I2S source */

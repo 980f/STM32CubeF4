@@ -98,6 +98,12 @@
   #endif
 
 #elif defined ( __GNUC__ )
+//#pragma message "ignoring casting of addresses to int and back"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#ifndef __cplusplus
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+#endif
+
   #if defined (__VFP_FP__) && !defined(__SOFTFP__)
     #if defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)
       #define __FPU_USED       1U
@@ -441,7 +447,7 @@ typedef struct
 {
   __IM  uint32_t CPUID;                  /*!< Offset: 0x000 (R/ )  CPUID Base Register */
   __IOM uint32_t ICSR;                   /*!< Offset: 0x004 (R/W)  Interrupt Control and State Register */
-  __IOM uint32_t VTOR;                   /*!< Offset: 0x008 (R/W)  Vector Table Offset Register */
+  __IOM uint32_t * VTOR;                   /*!< Offset: 0x008 (R/W)  Vector Table Offset Register */
   __IOM uint32_t AIRCR;                  /*!< Offset: 0x00C (R/W)  Application Interrupt and Reset Control Register */
   __IOM uint32_t SCR;                    /*!< Offset: 0x010 (R/W)  System Control Register */
   __IOM uint32_t CCR;                    /*!< Offset: 0x014 (R/W)  Configuration Control Register */

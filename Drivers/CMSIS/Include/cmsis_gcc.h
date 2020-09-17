@@ -835,6 +835,7 @@ __STATIC_FORCEINLINE void __set_FPSCR(uint32_t fpscr)
  */
 #define __NOP()                             __ASM volatile ("nop")
 
+#if 0 //these are not being found under the clion build :(
 /**
   \brief   Wait For Interrupt
   \details Wait For Interrupt is a hint instruction that suspends execution until one of a number of events occurs.
@@ -856,7 +857,13 @@ __STATIC_FORCEINLINE void __set_FPSCR(uint32_t fpscr)
  */
 #define __SEV()                             __ASM volatile ("sev")
 
+#else
+#define __SEV()
+#define __WFI()
+#define __WFE()
+#endif
 
+#if 0 //these are not being found under the clion build :(
 /**
   \brief   Instruction Synchronization Barrier
   \details Instruction Synchronization Barrier flushes the pipeline in the processor,
@@ -889,7 +896,11 @@ __STATIC_FORCEINLINE void __DMB(void)
 {
   __ASM volatile ("dmb 0xF":::"memory");
 }
-
+#else
+#define __DMB()
+#define __DSB()
+#define __ISB()
+#endif
 
 /**
   \brief   Reverse byte order (32 bit)

@@ -384,7 +384,7 @@ typedef struct
   uint16_t             PhyAddress;                /*!< Ethernet PHY address.
                                                            This parameter must be a number between Min_Data = 0 and Max_Data = 32 */
   
-  uint8_t             *MACAddr;                   /*!< MAC Address of used Hardware: must be pointer on an array of 6 bytes */
+  const uint8_t             *MACAddr;                   /*!< MAC Address of used Hardware: must be pointer on an array of 6 bytes */
   
   uint32_t             RxMode;                    /*!< Selects the Ethernet Rx mode: Polling mode, Interrupt mode.
                                                            This parameter can be a value of @ref ETH_Rx_Mode */

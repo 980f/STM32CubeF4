@@ -21,6 +21,14 @@
 #ifndef __STM32F4xx_HAL_DMA_H
 #define __STM32F4xx_HAL_DMA_H
 
+#if defined(__CMSIS_GCC_H)
+//#pragma message "ignoring casting of addresses to int and back"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+#ifndef __cplusplus
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+#endif
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif
