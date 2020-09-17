@@ -164,7 +164,7 @@
   * @{
   */
 static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err);
-static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, uint8_t *Addr);
+static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, const uint8_t *Addr);
 static void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth);
 static void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth);
 static void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth);
@@ -2097,7 +2097,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
   * @param  Addr Pointer to MAC address buffer data (6 bytes)
   * @retval HAL status
   */
-static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, uint8_t *Addr)
+static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, const uint8_t *Addr)
 {
   uint32_t tmpreg1;
   

@@ -28,7 +28,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx.h"
-#include "Legacy/stm32_hal_legacy.h"
+//has stuff we don't use and was annoying to compile: #include "Legacy/stm32_hal_legacy.h"
 #include <stddef.h>
 
 /* Exported types ------------------------------------------------------------*/
