@@ -46,6 +46,7 @@
 EndBSPDependencies */
 
 /* Includes ------------------------------------------------------------------*/
+#include <stm32f4xx_hal_def.h> //for UNUSED macro
 #include "usbh_cdc.h"
 
 /** @addtogroup USBH_LIB
