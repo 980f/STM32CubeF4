@@ -2153,6 +2153,10 @@ HAL_StatusTypeDef HAL_ETH_GetReceivedFrame(ETH_HandleTypeDef *heth);
 /* Communication with PHY functions*/
 HAL_StatusTypeDef HAL_ETH_ReadPHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYReg, uint32_t *RegValue);
 HAL_StatusTypeDef HAL_ETH_WritePHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYReg, uint32_t RegValue);
+/* the following overridable (weak) function is called repeatedly (and rapidly!) while this ETH module is waiting for a MAC value or a Phy value to change.
+ do NOT call any ETH functions from that code */
+void ETH_whileWaiting();
+
 /* Non-Blocking mode: Interrupt */
 HAL_StatusTypeDef HAL_ETH_GetReceivedFrame_IT(ETH_HandleTypeDef *heth);
 void HAL_ETH_IRQHandler(ETH_HandleTypeDef *heth);
