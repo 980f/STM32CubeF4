@@ -1254,6 +1254,77 @@ __weak void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *heth)
 }
 
 /**
+  * @brief  Reads or writes a PHY register
+  * @param  heth pointer to a ETH_HandleTypeDef structure that contains
+  *         the configuration information for ETHERNET module
+  * @param PHYReg PHY register address, is the index of one of the 32 PHY register.
+  *                This parameter can be one of the following values:
+  *                   PHY_BCR: Transceiver Basic Control Register,
+  *                   PHY_BSR: Transceiver Basic Status Register.
+  *                   More PHY register could be read depending on the used PHY
+  * @param forWrite non zero if writing to the PHY, zero if reading.
+  * @param RegValue pointer to the PHY register value to set, or where to store its value
+  * @retval HAL status TIMEOUT or OK
+  */
+static HAL_StatusTypeDef accessPHY(ETH_HandleTypeDef *heth,uint16_t PHYReg, _Bool forWrite, uint32_t *RegValue) {
+  assert_param(IS_ETH_PHY_ADDRESS(heth->Init.PhyAddress));
+  /*  point to bitband address of busy bit. */
+  __IO uint32_t * MiiBusy=(uint32_t *)(0x42000000 + ((0x28000+0x10)<<5)+(0<<2));//sure would be nice if the HAL had an official macro for bit band accessors
+  /*the example code had separate busy flags for mii read and write, but each operation interferes with the other, you can't do either when the other is active. That code only checked for the value about to be set.
+   * Also if we don't have ISR's trying to talk to the phy then we don't need to do this check,
+   * OTOH if they are active then the following needs to be atomic. Since HAL didn't do that apparently no-one actually does work in ISR's (or the code is flaky) */
+  if (heth->State == HAL_ETH_STATE_BUSY_WR) { //see above, there should be just one flag, I chose existing _WR.
+    return HAL_BUSY;
+  }
+  heth->State = HAL_ETH_STATE_BUSY_WR;
+  //and should also check the MiiBisy bit, if set then there is a major source code error- in this routine or a random write to the Miiar.
+  //end of "should be atomic"
+  if (forWrite) {//must fit between check for busy and setting the iiar
+    heth->Instance->MACMIIDR = *RegValue; //breakpoint here to trap all phy writes
+  }
+  uint32_t miiar = heth->Instance->MACMIIAR;
+  /* Keep only the CSR Clock Range CR[2:0] bits value */
+  miiar &= ~ETH_MACMIIAR_CR_MASK;
+  /* Prepare the MII address register value */
+  miiar |= ((heth->Init.PhyAddress << 11) & ETH_MACMIIAR_PA); /* Set the PHY device address   */
+  miiar |= ((PHYReg << 6) & ETH_MACMIIAR_MR);                 /* Set the PHY register address */
+  if (forWrite) {
+    miiar |= ETH_MACMIIAR_MW;                                 /* Set the write mode */
+  }
+  //is already zero due to CR_MASK preservation step
+  //  else {
+  //    miiar &= ~ETH_MACMIIAR_MW;                            /* Set the read mode  */
+  //  }
+  miiar |= ETH_MACMIIAR_MB;                                   /* Set the MII Busy bit   */
+  heth->Instance->MACMIIAR = miiar; //triggers SNI activity, ~40 uSec each time, ~20 uSec if you configure to only send the synch preamble once.
+
+  uint32_t tickstart = HAL_GetTick();
+  do {
+    if (!*MiiBusy) {
+      if (!forWrite) {
+        *RegValue = heth->Instance->MACMIIDR; //breakpoint here to trap all phy reads
+      }
+      heth->State = HAL_ETH_STATE_READY;
+      return HAL_OK;
+    }
+    /* sticking in the following waitpoll call is why the PHY access got refactored.
+     * This is only important if the worst case PHY busy could actually take as long as the demo code suggested.
+     * Since that is probably way wrong we might want to drop this hook.
+     * The worst case is 64 clocks of the MII, and the slowest clock rate is ~1.5MHz, for 42 microseconds max*/
+    ETH_whileWaiting();
+    /* formerly the hardcoded 2 below was either PHY_READ_TO or PHY_WRITE_TO but the given values for those
+       were absurd overkills, more than a factor of 1000 too long.
+       The 2 ensures at least one full ms happens.
+     */
+  } while (HAL_GetTick()-tickstart< 2);
+
+  heth->State = HAL_ETH_STATE_RESET;
+  /* Process Unlocked */
+  __HAL_UNLOCK(heth);//who locked it?
+  return HAL_TIMEOUT;
+}
+
+/**
   * @brief  Reads a PHY register
   * @param  heth pointer to a ETH_HandleTypeDef structure that contains
   *         the configuration information for ETHERNET module                  
@@ -1267,48 +1338,7 @@ __weak void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *heth)
   */
 HAL_StatusTypeDef HAL_ETH_ReadPHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYReg, uint32_t *RegValue)
 {
-  uint32_t tmpreg1 = 0U;
-  
-  /* Check parameters */
-  assert_param(IS_ETH_PHY_ADDRESS(heth->Init.PhyAddress));
-  
-  /* Check the ETH peripheral state */
-  if(heth->State == HAL_ETH_STATE_BUSY_RD)
-  {
-    return HAL_BUSY;
-  }
-  /* Set ETH HAL State to BUSY_RD */
-  heth->State = HAL_ETH_STATE_BUSY_RD;
-  
-  /* Get the ETHERNET MACMIIAR value */
-  tmpreg1 = heth->Instance->MACMIIAR;
-  
-  /* Keep only the CSR Clock Range CR[2:0] bits value */
-  tmpreg1 &= ~ETH_MACMIIAR_CR_MASK;
-  
-  /* Prepare the MII address register value */
-  tmpreg1 |=(((uint32_t)heth->Init.PhyAddress << 11U) & ETH_MACMIIAR_PA); /* Set the PHY device address   */
-  tmpreg1 |=(((uint32_t)PHYReg<<6U) & ETH_MACMIIAR_MR);                   /* Set the PHY register address */
-  tmpreg1 &= ~ETH_MACMIIAR_MW;                                            /* Set the read mode            */
-  tmpreg1 |= ETH_MACMIIAR_MB;                                             /* Set the MII Busy bit         */
-  
-  /* Write the result value into the MII Address register */
-  heth->Instance->MACMIIAR = tmpreg1;
-
-  if(ETH_waitOnMac(&(heth->Instance->MACMIIAR),0,ETH_MACMIIAR_MB,PHY_READ_TO,heth))
-  {
-    heth->State= HAL_ETH_STATE_READY;//curious exception to pattern, usually we make the state be an error value here
-    return HAL_TIMEOUT;
-  }
-  
-  /* Get MACMIIDR value */
-  *RegValue = (uint16_t)(heth->Instance->MACMIIDR);
-  
-  /* Set ETH HAL State to READY */
-  heth->State = HAL_ETH_STATE_READY;
-  
-  /* Return function status */
-  return HAL_OK;
+  return accessPHY(heth, PHYReg, 0,RegValue);
 }
 
 /**
@@ -1324,48 +1354,7 @@ HAL_StatusTypeDef HAL_ETH_ReadPHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYR
   */
 HAL_StatusTypeDef HAL_ETH_WritePHYRegister(ETH_HandleTypeDef *heth, uint16_t PHYReg, uint32_t RegValue)
 {
-  uint32_t tmpreg1 = 0U;
-
-  /* Check parameters */
-  assert_param(IS_ETH_PHY_ADDRESS(heth->Init.PhyAddress));
-  
-  /* Check the ETH peripheral state */
-  if(heth->State == HAL_ETH_STATE_BUSY_WR)
-  {
-    return HAL_BUSY;
-  }
-  /* Set ETH HAL State to BUSY_WR */
-  heth->State = HAL_ETH_STATE_BUSY_WR;
-  
-  /* Get the ETHERNET MACMIIAR value */
-  tmpreg1 = heth->Instance->MACMIIAR;
-  
-  /* Keep only the CSR Clock Range CR[2:0] bits value */
-  tmpreg1 &= ~ETH_MACMIIAR_CR_MASK;
-  
-  /* Prepare the MII register address value */
-  tmpreg1 |=(((uint32_t)heth->Init.PhyAddress<<11U) & ETH_MACMIIAR_PA); /* Set the PHY device address */
-  tmpreg1 |=(((uint32_t)PHYReg<<6U) & ETH_MACMIIAR_MR);                 /* Set the PHY register address */
-  tmpreg1 |= ETH_MACMIIAR_MW;                                           /* Set the write mode */
-  tmpreg1 |= ETH_MACMIIAR_MB;                                           /* Set the MII Busy bit */
-  
-  /* Give the value to the MII data register */
-  heth->Instance->MACMIIDR = (uint16_t)RegValue;
-  
-  /* Write the result value into the MII Address register */
-  heth->Instance->MACMIIAR = tmpreg1;
-  
-  if(ETH_waitOnMac(&(heth->Instance->MACMIIAR),0,ETH_MACMIIAR_MB,PHY_WRITE_TO,heth)!=HAL_OK)
-  {
-    heth->State= HAL_ETH_STATE_READY;//curious exception to pattern, usually we make the state be an error value here
-    return HAL_TIMEOUT;
-  }
-  
-  /* Set ETH HAL State to READY */
-  heth->State = HAL_ETH_STATE_READY;
-  
-  /* Return function status */
-  return HAL_OK; 
+  return accessPHY(heth, PHYReg, 1,&RegValue);
 }
 
 /**
@@ -1471,7 +1460,8 @@ HAL_StatusTypeDef HAL_ETH_Stop(ETH_HandleTypeDef *heth)
   return HAL_OK;
 }
 
-void ETH_ConfigMacCR(const ETH_HandleTypeDef *heth, const ETH_MACInitTypeDef *macconf) {/*------------------------ ETHERNET MACCR Configuration --------------------*/  //duplicate code chunk
+static void ETH_ConfigMacCR(const ETH_HandleTypeDef *heth, const ETH_MACInitTypeDef *macconf)
+{/*------------------------ ETHERNET MACCR Configuration --------------------*/  //duplicate code chunk
   /* Set the WD bit according to ETH Watchdog value */
   /* Set the JD: bit according to ETH Jabber value */
   /* Set the IFG bit according to ETH InterFrameGap value */
@@ -1501,7 +1491,9 @@ void ETH_ConfigMacCR(const ETH_HandleTypeDef *heth, const ETH_MACInitTypeDef *ma
                                                macconf->DeferralCheck),ETH_MACCR_CLEAR_MASK);
 }
 
-void ConfigMacFCR(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit) {/* Set the PT bit according to ETH PauseTime value */
+static void ConfigMacFCR(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit)
+{
+  /* Set the PT bit according to ETH PauseTime value */
   /* Set the DZPQ bit according to ETH ZeroQuantaPause value */
   /* Set the PLT bit according to ETH PauseLowThreshold value */
   /* Set the UP bit according to ETH UnicastPauseFrameDetect value */
@@ -1515,7 +1507,8 @@ void ConfigMacFCR(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit) {/
                                                  (*macinit).TransmitFlowControl, ETH_MACFCR_CLEAR_MASK);
 }
 
-void ConfigMacVLAN(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit) {
+static void ConfigMacVLAN(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit)
+{
   /* Set the ETV bit according to ETH VLANTagComparison value */
   /* Set the VL bit according to ETH VLANTagIdentifier value */
   ETH_MacFiddle(heth, &(heth->Instance->MACVLANTR),
@@ -1524,7 +1517,8 @@ void ConfigMacVLAN(const ETH_HandleTypeDef *heth, ETH_MACInitTypeDef *macinit) {
     0);
 }
 
-void ConfigMacFFR(const ETH_HandleTypeDef *heth, const ETH_MACInitTypeDef *macconf) {/* Write to ETHERNET MACFFR */
+static void ConfigMacFFR(const ETH_HandleTypeDef *heth, const ETH_MACInitTypeDef *macconf)
+{
   /* Set the RA bit according to ETH ReceiveAll value */
   /* Set the SAF and SAIF bits according to ETH SourceAddrFilter value */
   /* Set the PCF bit according to ETH PassControlFrames value */
@@ -1624,7 +1618,9 @@ HAL_StatusTypeDef HAL_ETH_ConfigMAC(ETH_HandleTypeDef *heth, ETH_MACInitTypeDef 
 }
 
 
-void ConfigDMAOMR(const ETH_HandleTypeDef *heth, ETH_DMAInitTypeDef *dmainit) {/* Set the DT bit according to ETH DropTCPIPChecksumErrorFrame value */
+static void ConfigDMAOMR(const ETH_HandleTypeDef *heth, ETH_DMAInitTypeDef *dmainit)
+{
+  /* Set the DT bit according to ETH DropTCPIPChecksumErrorFrame value */
   /* Set the RSF bit according to ETH ReceiveStoreForward value */
   /* Set the DFF bit according to ETH FlushReceivedFrame value */
   /* Set the TSF bit according to ETH TransmitStoreForward value */
@@ -1644,7 +1640,8 @@ void ConfigDMAOMR(const ETH_HandleTypeDef *heth, ETH_DMAInitTypeDef *dmainit) {/
                                                  dmainit->SecondFrameOperate, ETH_DMAOMR_CLEAR_MASK);
 }
 
-void ConfigDMABMR(const ETH_HandleTypeDef *heth, const ETH_DMAInitTypeDef *dmainit) {
+static void ConfigDMABMR(const ETH_HandleTypeDef *heth, const ETH_DMAInitTypeDef *dmainit)
+{
   /* Set the AAL bit according to ETH AddressAlignedBeats value */
   /* Set the FB bit according to ETH FixedBurst value */
   /* Set the RPBL and 4*PBL bits according to ETH RxDMABurstLength value */
@@ -1829,7 +1826,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
    /*--------------- ETHERNET MACHTHR and MACHTLR Configuration --------------*/
    /* Write to ETHERNET MACHTHR */
    (heth->Instance)->MACHTHR = (uint32_t)macinit.HashTableHigh;
-   
+
    /* Write to ETHERNET MACHTLR */
    (heth->Instance)->MACHTLR = (uint32_t)macinit.HashTableLow;
    /*----------------------- ETHERNET MACFCR Configuration -------------------*/
@@ -1838,28 +1835,27 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
   /*----------------------- ETHERNET MACVLANTR Configuration ----------------*/
    ConfigMacVLAN(heth,&macinit);
 
-    /* Ethernet DMA default initialization ************************************/
-    dmainit.DropTCPIPChecksumErrorFrame = ETH_DROPTCPIPCHECKSUMERRORFRAME_ENABLE;
-    dmainit.ReceiveStoreForward = ETH_RECEIVESTOREFORWARD_ENABLE;
-    dmainit.FlushReceivedFrame = ETH_FLUSHRECEIVEDFRAME_ENABLE;
-    dmainit.TransmitStoreForward = ETH_TRANSMITSTOREFORWARD_ENABLE;  
-    dmainit.TransmitThresholdControl = ETH_TRANSMITTHRESHOLDCONTROL_64BYTES;
-    dmainit.ForwardErrorFrames = ETH_FORWARDERRORFRAMES_DISABLE;
-    dmainit.ForwardUndersizedGoodFrames = ETH_FORWARDUNDERSIZEDGOODFRAMES_DISABLE;
-    dmainit.ReceiveThresholdControl = ETH_RECEIVEDTHRESHOLDCONTROL_64BYTES;
-    dmainit.SecondFrameOperate = ETH_SECONDFRAMEOPERARTE_ENABLE;
-    dmainit.AddressAlignedBeats = ETH_ADDRESSALIGNEDBEATS_ENABLE;
-    dmainit.FixedBurst = ETH_FIXEDBURST_ENABLE;
-    dmainit.RxDMABurstLength = ETH_RXDMABURSTLENGTH_32BEAT;
-    dmainit.TxDMABurstLength = ETH_TXDMABURSTLENGTH_32BEAT;
-    dmainit.EnhancedDescriptorFormat = ETH_DMAENHANCEDDESCRIPTOR_ENABLE;
-    dmainit.DescriptorSkipLength = 0x0U;
-    dmainit.DMAArbitration = ETH_DMAARBITRATION_ROUNDROBIN_RXTX_1_1;
+  /* Ethernet DMA default initialization ************************************/
+  dmainit.DropTCPIPChecksumErrorFrame = ETH_DROPTCPIPCHECKSUMERRORFRAME_ENABLE;
+  dmainit.ReceiveStoreForward = ETH_RECEIVESTOREFORWARD_ENABLE;
+  dmainit.FlushReceivedFrame = ETH_FLUSHRECEIVEDFRAME_ENABLE;
+  dmainit.TransmitStoreForward = ETH_TRANSMITSTOREFORWARD_ENABLE;
+  dmainit.TransmitThresholdControl = ETH_TRANSMITTHRESHOLDCONTROL_64BYTES;
+  dmainit.ForwardErrorFrames = ETH_FORWARDERRORFRAMES_DISABLE;
+  dmainit.ForwardUndersizedGoodFrames = ETH_FORWARDUNDERSIZEDGOODFRAMES_DISABLE;
+  dmainit.ReceiveThresholdControl = ETH_RECEIVEDTHRESHOLDCONTROL_64BYTES;
+  dmainit.SecondFrameOperate = ETH_SECONDFRAMEOPERARTE_ENABLE;
+  dmainit.AddressAlignedBeats = ETH_ADDRESSALIGNEDBEATS_ENABLE;
+  dmainit.FixedBurst = ETH_FIXEDBURST_ENABLE;
+  dmainit.RxDMABurstLength = ETH_RXDMABURSTLENGTH_32BEAT;
+  dmainit.TxDMABurstLength = ETH_TXDMABURSTLENGTH_32BEAT;
+  dmainit.EnhancedDescriptorFormat = ETH_DMAENHANCEDDESCRIPTOR_ENABLE;
+  dmainit.DescriptorSkipLength = 0x0U;
+  dmainit.DMAArbitration = ETH_DMAARBITRATION_ROUNDROBIN_RXTX_1_1;
 
   ConfigDMAOMR(heth, &dmainit);
-
   /*----------------------- ETHERNET DMABMR Configuration ------------------*/
-   ConfigDMABMR(heth,&dmainit);
+  ConfigDMABMR(heth,&dmainit);
 
    if((heth->Init).RxMode == ETH_RXINTERRUPT_MODE)
    {
@@ -1904,8 +1900,6 @@ static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, cons
   /* Load the selected MAC address low register */
   (*(__IO uint32_t *)((uint32_t)(ETH_MAC_ADDR_LBASE + MacAddr))) = tmpreg1;
 }
-
-
 
 /**
   * @brief  Enables the MAC transmission.
@@ -2010,7 +2004,8 @@ static void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth)
   /* Set the Flush Transmit FIFO bit */
   (heth->Instance)->DMAOMR |= ETH_DMAOMR_FTF;
 #if 1
-  /*##RM0090 says to wait until the bit we set clears itself, nothing like the original code here */
+  /*##RM0090 says to wait until the bit we set clears itself,
+   * nothing like the original code here */
   do {
     ETH_whileWaiting();//this probably takes more than 8 clocks when doing nothing.
   }
@@ -2026,14 +2021,16 @@ static void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth)
 #endif
 }
 
-/* all uses of the following were suspect. The only value passed in was 1 and 1 millisecond is much slower than "4 tx/rx/clocks
- * that was commented at all points of use. One of the places was ignoring what it was supposed to wait for, the other 4 uses
- * were in essence the same and the RM0090 manual does not suggest that the waiting is required.
- * Even if the comments are correct, waiting a millisecond when 40 or 400 nanoseconds are what are described was excessive,
- * and blocking other application execution for that long unpleasant.
- *
- * AND THEN there were direct uses of HAL_Delay which should have been this guy!
- * I know this as they were in duplicate code blocks.
+/* all uses of the following were suspect.
+  The only value passed in was 1 and 1 millisecond is much slower than the "4 tx/rx/clocks"
+  that was commented at all points of use.
+  One of the places was ignoring what it was supposed to wait for,
+  the other 4 uses were in essence the same and the RM0090 manual does not suggest that the waiting is required.
+  Even if the comments are correct, waiting a millisecond when 40 or 400 nanoseconds are what are described was excessive,
+  and blocking other application execution for that long is unpleasant.
+
+  AND THEN there were direct uses of HAL_Delay which should have been this guy!
+  I know this as they were in duplicate code blocks.
 */
 ///**
 //  * @brief  This function provides delay (in milliseconds) based on CPU cycles method.
