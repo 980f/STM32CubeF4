@@ -67,6 +67,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_flash.h" //this module doesn't publish that FLASH must be enabled.
 
 /** @addtogroup STM32F4xx_HAL_Driver
   * @{

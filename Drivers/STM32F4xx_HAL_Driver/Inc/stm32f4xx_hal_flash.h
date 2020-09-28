@@ -293,9 +293,10 @@ typedef struct
   * @}
   */
 
-/* Include FLASH HAL Extension module */
-#include "stm32f4xx_hal_flash_ex.h"
-#include "stm32f4xx_hal_flash_ramfunc.h"
+//is not always needed then let user include as needed, else just incorporate into this file.
+///* Include FLASH HAL Extension module */
+//#include "stm32f4xx_hal_flash_ex.h"
+//#include "stm32f4xx_hal_flash_ramfunc.h"
 
 /* Exported functions --------------------------------------------------------*/
 /** @addtogroup FLASH_Exported_Functions
