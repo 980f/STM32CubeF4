@@ -281,7 +281,8 @@ static void ETH_MacFiddle(const ETH_HandleTypeDef *heth, __IO uint32_t *fiddlee,
   */
 HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
 {
-  uint32_t tmpreg1 = 0U, phyreg = 0U;
+  uint32_t tmpreg1 = 0U;
+  uint32_t phy_sr = 0U;
   uint32_t hclk = 60000000U;
   
   /* Check the ETH peripheral state */
@@ -406,13 +407,13 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
     }
 
     /* Read the result of the auto-negotiation */
-    if((HAL_ETH_ReadPHYRegister(heth, PHY_SR, &phyreg)) != HAL_OK)
+    if((HAL_ETH_ReadPHYRegister(heth, PHY_SR, &phy_sr)) != HAL_OK)
     {
       return bailOnPhyfail(heth);
     }
     
     /* Configure the MAC with the Duplex Mode fixed by the auto-negotiation process */
-    if((phyreg & PHY_DUPLEX_STATUS) != (uint32_t)RESET)
+    if((phy_sr & PHY_DUPLEX_STATUS) != 0)
     {
       /* Set Ethernet duplex mode to Full-duplex following the auto-negotiation */
       (heth->Init).DuplexMode = ETH_MODE_FULLDUPLEX;  
@@ -423,7 +424,7 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
       (heth->Init).DuplexMode = ETH_MODE_HALFDUPLEX;           
     }
     /* Configure the MAC with the speed fixed by the auto-negotiation process */
-    if((phyreg & PHY_SPEED_STATUS) == PHY_SPEED_STATUS)
+    if((phy_sr & PHY_SPEED_STATUS) == PHY_SPEED_STATUS)
     {  
       /* Set Ethernet speed to 10M following the auto-negotiation */
       (heth->Init).Speed = ETH_SPEED_10M; 
@@ -1850,7 +1851,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
   dmainit.RxDMABurstLength = ETH_RXDMABURSTLENGTH_32BEAT;
   dmainit.TxDMABurstLength = ETH_TXDMABURSTLENGTH_32BEAT;
   dmainit.EnhancedDescriptorFormat = ETH_DMAENHANCEDDESCRIPTOR_ENABLE;
-  dmainit.DescriptorSkipLength = 0x0U;
+  dmainit.DescriptorSkipLength = 0;
   dmainit.DMAArbitration = ETH_DMAARBITRATION_ROUNDROBIN_RXTX_1_1;
 
   ConfigDMAOMR(heth, &dmainit);
@@ -2063,7 +2064,7 @@ static void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth)
   * @param heth pointer to struct for accessing phy and noting failures.
   * @retval HAL_TIMEOUT or HAL_OK
   */
-HAL_StatusTypeDef ETH_waitOnPhy(uint16_t phyreg,uint16_t ones, uint16_t zeroes,unsigned mdelay,ETH_HandleTypeDef *heth){
+static HAL_StatusTypeDef ETH_waitOnPhy(uint16_t phyreg,uint16_t ones, uint16_t zeroes,unsigned mdelay,ETH_HandleTypeDef *heth){
   unsigned tickstart = HAL_GetTick();
   uint32_t value;
   do
@@ -2087,13 +2088,13 @@ HAL_StatusTypeDef ETH_waitOnPhy(uint16_t phyreg,uint16_t ones, uint16_t zeroes,u
   * @retval HAL_TIMEOUT or HAL_OK
   */
 
-HAL_StatusTypeDef ETH_waitOnMac(volatile uint32_t *macregister,uint32_t ones, uint32_t zeroes,unsigned mdelay,ETH_HandleTypeDef *heth){
+static HAL_StatusTypeDef ETH_waitOnMac(volatile uint32_t *macregister,uint32_t ones, uint32_t zeroes,unsigned mdelay,ETH_HandleTypeDef *heth){
   unsigned tickstart = HAL_GetTick();
 
   do
   {
     uint32_t value = *macregister;
-    if ((value & ones) == ones && (value & zeroes) == 0) {
+    if (((value & ones) == ones) && ((value & zeroes) == 0)) {
       return HAL_OK;
     }
     ETH_whileWaiting();
