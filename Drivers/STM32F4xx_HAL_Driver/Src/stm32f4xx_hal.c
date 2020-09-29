@@ -34,7 +34,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
-
+#include "stm32f4xx_hal_flash.h" //without this include you MUST configure to include the HAL FLASH module, even though we only need some register pokes from the header.
 /** @addtogroup STM32F4xx_HAL_Driver
   * @{
   */
