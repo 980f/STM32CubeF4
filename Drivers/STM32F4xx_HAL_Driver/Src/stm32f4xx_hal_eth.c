@@ -321,7 +321,7 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   __HAL_RCC_SYSCFG_CLK_ENABLE();
   
   /* Select MII or RMII Mode*/
-  SYSCFG->PMC &= ~(SYSCFG_PMC_MII_RMII_SEL);
+  SYSCFG->PMC &= ~(SYSCFG_PMC_MII_RMII_SEL);//todo: this line or following in case bit is already initialized, this will toggle it and perhaps that is a bad idea.
   SYSCFG->PMC |= (uint32_t)heth->Init.MediaInterface;
   
   /* Ethernet Software reset */
