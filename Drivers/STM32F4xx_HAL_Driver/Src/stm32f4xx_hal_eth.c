@@ -528,7 +528,7 @@ HAL_StatusTypeDef HAL_ETH_DMATxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
     dmatxdesc->Status = ETH_DMATXDESC_TCH;  
     
     /* Set Buffer1 address pointer */
-    dmatxdesc->Buffer1Addr = (uint32_t)(&TxBuff[i*ETH_TX_BUF_SIZE]);
+    dmatxdesc->Buffer1Addr = &TxBuff[i*ETH_TX_BUF_SIZE];
     
     if ((heth->Init).ChecksumMode == ETH_CHECKSUM_BY_HARDWARE)
     {
@@ -540,12 +540,12 @@ HAL_StatusTypeDef HAL_ETH_DMATxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
     if(i < (TxBuffCount-1U))
     {
       /* Set next descriptor address register with next descriptor base address */
-      dmatxdesc->Buffer2NextDescAddr = (uint32_t)(DMATxDescTab+i+1U);
+      dmatxdesc->Buffer2NextDescAddr = DMATxDescTab + i + 1U;
     }
     else
     {
       /* For last descriptor, set next descriptor address register equal to the first descriptor base address */ 
-      dmatxdesc->Buffer2NextDescAddr = (uint32_t) DMATxDescTab;  
+      dmatxdesc->Buffer2NextDescAddr =  DMATxDescTab;
     }
   }
   
@@ -573,9 +573,6 @@ HAL_StatusTypeDef HAL_ETH_DMATxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
   */
 HAL_StatusTypeDef HAL_ETH_DMARxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADescTypeDef *DMARxDescTab, uint8_t *RxBuff, uint32_t RxBuffCount)
 {
-  uint32_t i = 0U;
-  ETH_DMADescTypeDef *DMARxDesc;
-  
   /* Process Locked */
   __HAL_LOCK(heth);
   
@@ -586,10 +583,10 @@ HAL_StatusTypeDef HAL_ETH_DMARxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
   heth->RxDesc = DMARxDescTab; 
   
   /* Fill each DMARxDesc descriptor with the right values */
-  for(i=0U; i < RxBuffCount; i++)
+  for(uint32_t i=0U; i < RxBuffCount; i++)
   {
     /* Get the pointer on the ith member of the Rx Desc list */
-    DMARxDesc = DMARxDescTab+i;
+    ETH_DMADescTypeDef *DMARxDesc = &DMARxDescTab[i];
     
     /* Set Own bit of the Rx descriptor Status */
     DMARxDesc->Status = ETH_DMARXDESC_OWN;
@@ -598,7 +595,7 @@ HAL_StatusTypeDef HAL_ETH_DMARxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
     DMARxDesc->ControlBufferSize = ETH_DMARXDESC_RCH | ETH_RX_BUF_SIZE;  
     
     /* Set Buffer1 address pointer */
-    DMARxDesc->Buffer1Addr = (uint32_t)(&RxBuff[i*ETH_RX_BUF_SIZE]);
+    DMARxDesc->Buffer1Addr = &RxBuff[i*ETH_RX_BUF_SIZE];
     
     if((heth->Init).RxMode == ETH_RXINTERRUPT_MODE)
     {
@@ -606,17 +603,8 @@ HAL_StatusTypeDef HAL_ETH_DMARxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
       DMARxDesc->ControlBufferSize &= ~ETH_DMARXDESC_DIC;
     }
     
-    /* Initialize the next descriptor with the Next Descriptor Polling Enable */
-    if(i < (RxBuffCount-1U))
-    {
-      /* Set next descriptor address register with next descriptor base address */
-      DMARxDesc->Buffer2NextDescAddr = (uint32_t)(DMARxDescTab+i+1U); 
-    }
-    else
-    {
-      /* For last descriptor, set next descriptor address register equal to the first descriptor base address */ 
-      DMARxDesc->Buffer2NextDescAddr = (uint32_t)(DMARxDescTab); 
-    }
+    /* If not last point to next else point to first. If only one then it points/loops to itself */
+    DMARxDesc->Buffer2NextDescAddr =&DMARxDescTab[(i < (RxBuffCount-1))? i+1: 0];
   }
   
   /* Set Receive Descriptor List Address Register */
@@ -1786,14 +1774,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
   macinit.CarrierSense = ETH_CARRIERSENCE_ENABLE;
   macinit.ReceiveOwn = ETH_RECEIVEOWN_ENABLE;
   macinit.LoopbackMode = ETH_LOOPBACKMODE_DISABLE;
-  if(heth->Init.ChecksumMode == ETH_CHECKSUM_BY_HARDWARE)
-  {
-    macinit.ChecksumOffload = ETH_CHECKSUMOFFLAOD_ENABLE;
-  }
-  else
-  {
-    macinit.ChecksumOffload = ETH_CHECKSUMOFFLAOD_DISABLE;
-  }
+  macinit.ChecksumOffload =(heth->Init.ChecksumMode == ETH_CHECKSUM_BY_HARDWARE)?ETH_CHECKSUMOFFLAOD_ENABLE: ETH_CHECKSUMOFFLAOD_DISABLE;
   macinit.RetryTransmission = ETH_RETRYTRANSMISSION_DISABLE;
   macinit.AutomaticPadCRCStrip = ETH_AUTOMATICPADCRCSTRIP_DISABLE;
   macinit.BackOffLimit = ETH_BACKOFFLIMIT_10;

@@ -572,9 +572,9 @@ typedef struct
   
   uint32_t   ControlBufferSize;     /*!< Control and Buffer1, Buffer2 lengths */
   
-  uint32_t   Buffer1Addr;           /*!< Buffer1 address pointer */
+  void *   Buffer1Addr;           /*!< Buffer1 address pointer */
   
-  uint32_t   Buffer2NextDescAddr;   /*!< Buffer2 or next descriptor address pointer */
+  void *   Buffer2NextDescAddr;   /*!< Buffer2 or next descriptor address pointer */
   
   /*!< Enhanced ETHERNET DMA PTP Descriptors */
   uint32_t   ExtendedStatus;        /*!< Extended status for PTP receive descriptor */
@@ -600,7 +600,7 @@ typedef struct
   
   uint32_t length;                       /*!< Frame length */
   
-  uint32_t buffer;                       /*!< Frame buffer */
+  void * buffer;                       /*!< Frame buffer */
 
 } ETH_DMARxFrameInfos;
 
