@@ -1038,7 +1038,7 @@ HAL_StatusTypeDef HAL_ETH_GetReceivedFrame(ETH_HandleTypeDef *heth)
   return HAL_ERROR;
 }
 
-/**
+/** reviews dma descriptors and sets RxFrameInfos accordingly.
   * @brief  Gets the Received frame in interrupt mode. 
   * @param  heth pointer to a ETH_HandleTypeDef structure that contains
   *         the configuration information for ETHERNET module
@@ -1259,7 +1259,8 @@ static HAL_StatusTypeDef accessPHY(ETH_HandleTypeDef *heth,uint16_t PHYReg, _Boo
   assert_param(IS_ETH_PHY_ADDRESS(heth->Init.PhyAddress));
   /*  point to bitband address of busy bit. */
   __IO uint32_t * MiiBusy=(uint32_t *)(0x42000000 + ((0x28000+0x10)<<5)+(0<<2));//sure would be nice if the HAL had an official macro for bit band accessors
-  /*the example code had separate busy flags for mii read and write, but each operation interferes with the other, you can't do either when the other is active. That code only checked for the value about to be set.
+  /* the example code had separate busy flags for mii read and write, but each operation interferes with the other, you can't do either when the other is active.
+   * That code only checked for the direction about to be applied.
    * Also if we don't have ISR's trying to talk to the phy then we don't need to do this check,
    * OTOH if they are active then the following needs to be atomic. Since HAL didn't do that apparently no-one actually does work in ISR's (or the code is flaky) */
   if (heth->State == HAL_ETH_STATE_BUSY_WR) { //see above, there should be just one flag, I chose existing _WR.
@@ -1305,7 +1306,7 @@ static HAL_StatusTypeDef accessPHY(ETH_HandleTypeDef *heth,uint16_t PHYReg, _Boo
        were absurd overkills, more than a factor of 1000 too long.
        The 2 ensures at least one full ms happens.
      */
-  } while (HAL_GetTick()-tickstart< 2);
+  } while ( (HAL_GetTick()-tickstart)< 2);
 
   heth->State = HAL_ETH_STATE_RESET;
   /* Process Unlocked */
