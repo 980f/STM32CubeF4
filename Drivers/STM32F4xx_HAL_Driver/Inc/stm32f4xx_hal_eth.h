@@ -333,6 +333,9 @@
 /* ETHERNET DMAOMR register Mask */
 #define ETH_DMAOMR_CLEAR_MASK   0xF8DE3F23U
 
+/* ETHERNET DMABMR register Mask */
+#define ETH_DMABMR_CLEAR_MASK   0xFFFFFFFEU
+
 /* ETHERNET Remote Wake-up frame register length */
 #define ETH_WAKEUP_REGISTER_LENGTH      8U
 

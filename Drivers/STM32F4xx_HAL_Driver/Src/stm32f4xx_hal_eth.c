@@ -522,30 +522,22 @@ HAL_StatusTypeDef HAL_ETH_DMATxDescListInit(ETH_HandleTypeDef *heth, ETH_DMADesc
   for(i=0U; i < TxBuffCount; i++)
   {
     /* Get the pointer on the ith member of the Tx Desc list */
-    dmatxdesc = DMATxDescTab + i;
-    
-    /* Set Second Address Chained bit */
-    dmatxdesc->Status = ETH_DMATXDESC_TCH;  
-    
+    dmatxdesc = &DMATxDescTab[i];
     /* Set Buffer1 address pointer */
     dmatxdesc->Buffer1Addr = &TxBuff[i*ETH_TX_BUF_SIZE];
-    
+    dmatxdesc->Status =0;//allow for reordering code.
     if ((heth->Init).ChecksumMode == ETH_CHECKSUM_BY_HARDWARE)
     {
       /* Set the DMA Tx descriptors checksum insertion */
       dmatxdesc->Status |= ETH_DMATXDESC_CHECKSUMTCPUDPICMPFULL;
     }
-    
-    /* Initialize the next descriptor with the Next Descriptor Polling Enable */
-    if(i < (TxBuffCount-1U))
-    {
-      /* Set next descriptor address register with next descriptor base address */
-      dmatxdesc->Buffer2NextDescAddr = DMATxDescTab + i + 1U;
-    }
-    else
-    {
-      /* For last descriptor, set next descriptor address register equal to the first descriptor base address */ 
-      dmatxdesc->Buffer2NextDescAddr =  DMATxDescTab;
+    if(1 /*heth->Init.newBooleanToLinkAllBuffers*/) {
+      /* Set Second Address Chained bit */
+      dmatxdesc->Status |= ETH_DMATXDESC_TCH;
+      dmatxdesc->Buffer2NextDescAddr = &DMATxDescTab[(i < (TxBuffCount-1))? i+1: 0];
+    } else {
+      /* clear for ease of debug */
+      dmatxdesc->Buffer2NextDescAddr = 0;//&DMATxDescTab[(i < (TxBuffCount-1))? i+1: 0];
     }
   }
   
@@ -901,6 +893,9 @@ HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameL
   {
     /* Set LAST and FIRST segment */
     heth->TxDesc->Status |=ETH_DMATXDESC_FS|ETH_DMATXDESC_LS;
+    if(1/*heth->Init.txSignalCompletion*/) {
+      heth->TxDesc->Status |= ETH_DMATXDESC_IC; //want tx complete signalling
+    }
     /* Set frame size */
     heth->TxDesc->ControlBufferSize = (FrameLength & ETH_DMATXDESC_TBS1);
     /* Set Own bit of the Tx descriptor Status: gives the buffer back to ETHERNET DMA */
@@ -928,6 +923,9 @@ HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameL
       {
         /* Setting the last segment bit */
         heth->TxDesc->Status |= ETH_DMATXDESC_LS;
+        if(1/*heth->Init.txSignalCompletion*/) {
+          heth->TxDesc->Status |= ETH_DMATXDESC_IC; //want tx complete signalling
+        }
         size = FrameLength - (bufcount-1U)*ETH_TX_BUF_SIZE;
         heth->TxDesc->ControlBufferSize = (size & ETH_DMATXDESC_TBS1);
       }
@@ -1648,7 +1646,7 @@ static void ConfigDMABMR(const ETH_HandleTypeDef *heth, const ETH_DMAInitTypeDef
                                                  dmainit->EnhancedDescriptorFormat |
                                                  (dmainit->DescriptorSkipLength << 2U) |
                                                  dmainit->DMAArbitration |
-                                                 ETH_DMABMR_USP, 0);
+                                                 ETH_DMABMR_USP, ETH_DMABMR_CLEAR_MASK);
 
 }
 
