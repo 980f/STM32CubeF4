@@ -51,7 +51,7 @@ static void USBH_ParseInterfaceDesc(USBH_InterfaceDescTypeDef *if_descriptor, ui
 * @{
 */
 
-//why didn't they do this? It allows for someone to tap the OS event stream with their own simple override.
+
 #if (USBH_USE_OS == 1U)
 static void postEvent(USBH_HandleTypeDef *phost){
   phost->os_msg = (uint32_t)USBH_CONTROL_EVENT;
@@ -66,10 +66,24 @@ static void postEvent(USBH_HandleTypeDef *phost){
 #define postEvent(phost)
 #endif
 
-static void changeState(USBH_HandleTypeDef *phost, CTRL_StateTypeDef controlState, _Bool andPost) {
-  phost->Control.state = controlState;
-  if (andPost) {
-    postEvent(phost);
+/**
+  * @brief  changeState
+  *         set the Control.state and conditionally call postEvent.
+  * @param  phost: Host Handle
+  * @param  andPost: 1 post event if state changes, -1 post event even if state does not change, 0: don't post.
+  * @retval USBH Status
+  */
+
+static void changeState(USBH_HandleTypeDef *phost, CTRL_StateTypeDef controlState, int andPost) {
+  if(phost->Control.state != controlState){
+    phost->Control.state = controlState;//breakpoint here to see all state changes
+    if (andPost) {
+      postEvent(phost);
+    }
+  } else {
+    if (andPost<0) {
+      postEvent(phost);
+    }
   }
 }
 
@@ -411,8 +425,7 @@ static void USBH_ParseStringDesc(uint8_t *psrc, uint8_t *pdest, uint16_t length)
     psrc += 2U;
     for (idx = 0U; idx < strlength; idx += 2U) {
       /* Copy Only the string and ignore the UNICODE ID, hence add the src */
-      *pdest = psrc[idx];
-      pdest++;
+      *pdest++ = psrc[idx];
     }
     *pdest = 0U; /* mark end of string */
   }
@@ -554,7 +567,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost) {
     case CTRL_DATA_OUT:
       USBH_CtlSendData(phost, phost->Control.buff, phost->Control.length, phost->Control.pipe_out, 1U);
       phost->Control.timer = (uint16_t) phost->Timer;
-      changeState(phost, CTRL_DATA_OUT_WAIT, 1);
+      changeState(phost, CTRL_DATA_OUT_WAIT, 0);
       break;
 
     case CTRL_DATA_OUT_WAIT:
@@ -563,14 +576,14 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost) {
 
       if (URB_Status == USBH_URB_DONE) {
         /* If the Setup Pkt is sent successful, then change the state */
-        changeState(phost, CTRL_STATUS_IN, 0);
+        changeState(phost, CTRL_STATUS_IN, 1);
       } else if (URB_Status == USBH_URB_STALL) {
         /* In stall case, return to previous machine state*/
-        changeState(phost, CTRL_STALLED, 0);
+        changeState(phost, CTRL_STALLED, 1);
         status = USBH_NOT_SUPPORTED;
       } else if (URB_Status == USBH_URB_NOTREADY) {
         /* Nack received from device */
-        changeState(phost, CTRL_DATA_OUT, 0);
+        changeState(phost, CTRL_DATA_OUT, 1);
       } else if (URB_Status == USBH_URB_ERROR) {
         /* device error */
         markError(phost);
@@ -583,7 +596,7 @@ static USBH_StatusTypeDef USBH_HandleControl(USBH_HandleTypeDef *phost) {
       USBH_CtlReceiveData(phost, 0U, 0U, phost->Control.pipe_in);
 
       phost->Control.timer = (uint16_t) phost->Timer;
-      changeState(phost, CTRL_STATUS_IN_WAIT, 1);
+      changeState(phost, CTRL_STATUS_IN_WAIT, 0);
       break;
 
     case CTRL_STATUS_IN_WAIT:
