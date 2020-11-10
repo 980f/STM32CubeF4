@@ -457,8 +457,8 @@ typedef struct _USBH_HandleTypeDef
   CMD_StateTypeDef      RequestState;
   USBH_CtrlTypeDef      Control;
   USBH_DeviceTypeDef    device;
-  USBH_ClassTypeDef    *pClass[USBH_MAX_NUM_SUPPORTED_CLASS];
-  USBH_ClassTypeDef    *pActiveClass;
+  const USBH_ClassTypeDef    *pClass[USBH_MAX_NUM_SUPPORTED_CLASS];
+  const USBH_ClassTypeDef    *pActiveClass;
   uint32_t              ClassNumber;
   uint32_t              Pipes[16];
   __IO uint32_t         Timer;

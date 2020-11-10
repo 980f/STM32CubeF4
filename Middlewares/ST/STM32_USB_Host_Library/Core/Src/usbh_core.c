@@ -242,7 +242,7 @@ static USBH_StatusTypeDef DeInitStateMachine(USBH_HandleTypeDef *phost)
   * @param  pclass: Class handle
   * @retval USBH Status
   */
-USBH_StatusTypeDef USBH_RegisterClass(USBH_HandleTypeDef *phost, USBH_ClassTypeDef *pclass)
+USBH_StatusTypeDef USBH_RegisterClass(USBH_HandleTypeDef *phost, const USBH_ClassTypeDef *pclass)
 {
   USBH_StatusTypeDef status = USBH_OK;
 

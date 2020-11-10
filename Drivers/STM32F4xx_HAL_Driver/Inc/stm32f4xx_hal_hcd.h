@@ -111,7 +111,7 @@ typedef struct
 #define HCD_SPEED_HIGH               USBH_HS_SPEED
 #define HCD_SPEED_FULL               USBH_FSLS_SPEED
 #define HCD_SPEED_LOW                USBH_FSLS_SPEED
-
+//todo:M HCD_SPEED_FULL above looks bogus!
 /**
   * @}
   */
