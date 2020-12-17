@@ -1286,7 +1286,6 @@ static HAL_StatusTypeDef accessPHY(ETH_HandleTypeDef *heth,uint16_t PHYReg, _Boo
   miiar |= ETH_MACMIIAR_MB;                                   /* Set the MII Busy bit   */
   heth->Instance->MACMIIAR = miiar; //triggers SNI activity, ~40 uSec each time, ~20 uSec if you configure to only send the synch preamble once.
 
-  uint32_t tickstart = HAL_GetTick();
   do {
     if (!*MiiBusy) {
       if (!forWrite) {
@@ -1304,7 +1303,7 @@ static HAL_StatusTypeDef accessPHY(ETH_HandleTypeDef *heth,uint16_t PHYReg, _Boo
        were absurd overkills, more than a factor of 1000 too long.
        The 2 ensures at least one full ms happens.
      */
-  } while ( (HAL_GetTick()-tickstart)< 2);
+  } while (1);
 
   heth->State = HAL_ETH_STATE_RESET;
   /* Process Unlocked */
