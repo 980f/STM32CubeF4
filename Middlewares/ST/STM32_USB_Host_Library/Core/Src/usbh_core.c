@@ -806,6 +806,20 @@ USBH_StatusTypeDef  USBH_Process(USBH_HandleTypeDef *phost)
   return USBH_OK;
 }
 
+static void onEnumFailure(USBH_HandleTypeDef *phost){
+  USBH_ErrLog("Control error: Get Device Descriptor request failed in state ENUM_StateTypeDef %d", phost->EnumState);
+  if (++ phost->device.EnumCnt > 3U) {
+    /* Buggy Device can't complete get device desc request */
+    USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
+    phost->gState = HOST_ABORT_STATE;
+  } else {    /* free control pipes */
+    USBH_FreePipe(phost, phost->Control.pipe_out);
+    USBH_FreePipe(phost, phost->Control.pipe_in);
+    /* Reset the USB Device */
+    phost->EnumState = ENUM_IDLE;
+    phost->gState = HOST_IDLE;
+  }
+}
 
 /**
   * @brief  USBH_HandleEnum
@@ -841,23 +855,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else if (ReqStatus == USBH_NOT_SUPPORTED)
       {
-        USBH_ErrLog("Control error: Get Device Descriptor request failed");
-        phost->device.EnumCnt++;
-        if (phost->device.EnumCnt > 3U)
-        {
-          /* Buggy Device can't complete get device desc request */
-          USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
-          phost->gState = HOST_ABORT_STATE;
-        }
-        else
-        {
-          /* free control pipes */
-          USBH_FreePipe(phost, phost->Control.pipe_out);
-          USBH_FreePipe(phost, phost->Control.pipe_in);
-
-          /* Reset the USB Device */
-          phost->gState = HOST_IDLE;
-        }
+        onEnumFailure(phost);
       }
       else
       {
@@ -877,24 +875,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else if (ReqStatus == USBH_NOT_SUPPORTED)
       {
-        USBH_ErrLog("Control error: Get Full Device Descriptor request failed");
-        phost->device.EnumCnt++;
-        if (phost->device.EnumCnt > 3U)
-        {
-          /* Buggy Device can't complete get device desc request */
-          USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
-          phost->gState = HOST_ABORT_STATE;
-        }
-        else
-        {
-          /* Free control pipes */
-          USBH_FreePipe(phost, phost->Control.pipe_out);
-          USBH_FreePipe(phost, phost->Control.pipe_in);
-
-          /* Reset the USB Device */
-          phost->EnumState = ENUM_IDLE;
-          phost->gState = HOST_IDLE;
-        }
+        onEnumFailure(phost);
       }
       else
       {
@@ -948,24 +929,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else if (ReqStatus == USBH_NOT_SUPPORTED)
       {
-        USBH_ErrLog("Control error: Get Device configuration descriptor request failed");
-        phost->device.EnumCnt++;
-        if (phost->device.EnumCnt > 3U)
-        {
-          /* Buggy Device can't complete get device desc request */
-          USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
-          phost->gState = HOST_ABORT_STATE;
-        }
-        else
-        {
-          /* Free control pipes */
-          USBH_FreePipe(phost, phost->Control.pipe_out);
-          USBH_FreePipe(phost, phost->Control.pipe_in);
-
-          /* Reset the USB Device */
-          phost->EnumState = ENUM_IDLE;
-          phost->gState = HOST_IDLE;
-        }
+        onEnumFailure(phost);
       }
       else
       {
@@ -982,24 +946,7 @@ static USBH_StatusTypeDef USBH_HandleEnum(USBH_HandleTypeDef *phost)
       }
       else if (ReqStatus == USBH_NOT_SUPPORTED)
       {
-        USBH_ErrLog("Control error: Get Device configuration descriptor request failed");
-        phost->device.EnumCnt++;
-        if (phost->device.EnumCnt > 3U)
-        {
-          /* Buggy Device can't complete get device desc request */
-          USBH_UsrLog("Control error, Device not Responding Please unplug the Device.");
-          phost->gState = HOST_ABORT_STATE;
-        }
-        else
-        {
-          /* Free control pipes */
-          USBH_FreePipe(phost, phost->Control.pipe_out);
-          USBH_FreePipe(phost, phost->Control.pipe_in);
-
-          /* Reset the USB Device */
-          phost->EnumState = ENUM_IDLE;
-          phost->gState = HOST_IDLE;
-        }
+        onEnumFailure(phost);
       }
       else
       {
